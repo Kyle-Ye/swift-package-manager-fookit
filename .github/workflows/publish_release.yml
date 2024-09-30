@@ -1,0 +1,40 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - '*'  # This will trigger the workflow when a tag matching 'v*' pattern is pushed
+
+jobs:
+  publish_release:
+    runs-on: macos-14  # Use macOS runner for macOS/Xcode environment
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 16.0
+      - name: Build Binaries
+        run: Scripts/archive_xcframework.sh
+      - name: Compute Checksum
+        id: checksum
+        run: |
+          echo "checksum=$(swift package compute-checksum ./FooKit.xcframework.zip)" >> $GITHUB_OUTPUT
+          echo "bin_checksum=$(md5 -q ./FooKit.xcframework/macos-arm64_x86_64/FooKit.framework/FooKit)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          body: |
+            ```swift
+            .binaryTarget(
+                name: "FooKit",
+                url: "https://github.com/Kyle-Ye/swift-package-manager-fookit/releases/download/${{ github.ref_name }}/FooKit.xcframework.zip",
+                checksum: "${{ steps.checksum.outputs.checksum }}"
+            ),
+            FooKit MachO md5: ${{ steps.checksum.outputs.bin_checksum }}
+            ```
+          allowUpdates: true
+          artifacts: "FooKit.xcframework.zip"
+          token: ${{ secrets.GITHUB_TOKEN }}
